@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist -b gh-pages --nojekyll -m \"部署 GitHub Pages 构建产物\""
   },
   "dependencies": {
     "mapbox-gl": "^2.15.0",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "gh-pages": "^6.3.0",
     "vite": "^6.0.0"
   }
 }
