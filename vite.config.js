@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// 源码打包路径前缀为 /pickCoordinates/
+// GitHub Pages 项目站点路径
 export default defineConfig({
-  base: '/pickCoordinates/',
+  base: '/tianditu-coordinate-picker/',
   plugins: [vue()],
   server: {
     port: 3000,
