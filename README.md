@@ -15,8 +15,18 @@
 npm install
 ```
 
-2. 配置天地图 Token：
-打开 `src/App.vue`，将 `TDT_KEY` 替换为您自己在[天地图控制台](https://console.tianditu.gov.cn/)申请的「浏览器端」Token。
+2. 配置环境变量：
+仓库已提交 `.env`（含浏览器端 Token），拉取代码后可直接运行。
+
+如需改用自己申请的 Token，复制 `.env.example` 为 `.env.local` 并填写（`.env.local` 优先级更高，且不会提交）：
+
+```bash
+cp .env.example .env.local
+```
+- `VITE_TDT_KEY`：在[天地图控制台](https://console.tianditu.gov.cn/)申请的「浏览器端」Token，需开通底图服务与地名搜索服务，并配置域名白名单
+- `VITE_MAPBOX_TOKEN`：在 [Mapbox](https://account.mapbox.com/access-tokens/) 获取的 Access Token
+
+> 这两个 Token 会随前端产物公开，请务必在服务方控制台配置域名/URL 白名单。
 
 3. 启动本地开发服务：
 ```bash
@@ -26,4 +36,9 @@ npm run dev
 4. 构建打包：
 ```bash
 npm run build
+```
+
+5. 部署到 GitHub Pages：
+```bash
+npm run deploy
 ```

@@ -13,8 +13,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# 环境变量
-.env
+# 环境变量（.env 提交到仓库以同步浏览器端 Token；本地覆盖使用 .env.local）
 .env.local
 .env.*.local
 
