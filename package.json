@@ -10,6 +10,8 @@
     "deploy": "npm run build && gh-pages -d dist -b gh-pages --nojekyll -m \"部署 GitHub Pages 构建产物\""
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.14.7",
     "mapbox-gl": "^2.15.0",
     "vue": "^3.5.13"
   },
