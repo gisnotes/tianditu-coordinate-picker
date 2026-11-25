@@ -24,65 +24,129 @@
           >百度坐标拾取</el-link>
         </div>
       </div>
-      <div class="search-panel-wrap">
-        <div class="search-toolbar">
-          <el-radio-group v-model="searchMode" @change="handleModeChange">
-            <el-radio-button value="coord">坐标定位</el-radio-button>
-            <el-radio-button value="poi">POI 搜索</el-radio-button>
-          </el-radio-group>
-
-          <el-input
-            v-model="searchKeyword"
-            class="search-input"
-            :placeholder="searchMode === 'coord' ? '输入经度,纬度跳转 (例: 116.4074, 39.9042)' : '输入关键字搜索地点 (例: 故宫)'"
-            clearable
-            @keyup.enter="handleSearch"
-          />
-
-          <el-button
-            type="primary"
-            :loading="searchMode === 'poi' && poiLoading"
-            @click="handleSearch"
-          >{{ searchMode === 'coord' ? '定位' : '搜索' }}</el-button>
+      <div class="header-right">
+        <!-- 更改天地图密钥 -->
+        <div ref="tkChangeRef" class="tk-change">
+          <button
+            type="button"
+            class="tk-trigger"
+            :class="{ active: tkPopoverOpen, custom: hasCustomTdtKey }"
+            title="天地图密钥更改"
+            @click="toggleTkPopover"
+          >
+            <el-icon><Key /></el-icon>
+            <span>密钥更改</span>
+            <span v-if="hasCustomTdtKey" class="tk-dot" title="当前使用自定义密钥"></span>
+          </button>
+          <transition name="el-zoom-in-top">
+            <div v-show="tkPopoverOpen" class="tk-popover">
+              <div class="popover-header">
+                <span class="popover-title">天地图密钥更改</span>
+                <button
+                  type="button"
+                  class="popover-close"
+                  title="关闭"
+                  @click="tkPopoverOpen = false"
+                >
+                  <el-icon><Close /></el-icon>
+                </button>
+              </div>
+              <div class="popover-form">
+                <el-input
+                  ref="tkInputRef"
+                  v-model="tkInput"
+                  size="small"
+                  placeholder="请输入新的天地图密钥"
+                  clearable
+                  @keyup.enter="applyTdtKey"
+                >
+                  <template #prefix>
+                    <el-icon><Key /></el-icon>
+                  </template>
+                </el-input>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :disabled="!tkInput.trim()"
+                  @click="applyTdtKey"
+                >应用</el-button>
+              </div>
+              <div class="popover-footer">
+                <span class="popover-hint">输入新密钥后将自动刷新地图瓦片</span>
+                <el-button
+                  v-if="hasCustomTdtKey"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="resetTdtKey"
+                >恢复默认</el-button>
+              </div>
+            </div>
+          </transition>
         </div>
 
-        <!-- POI 搜索结果下拉面板 -->
-        <div v-if="searchMode === 'poi' && (poiLoading || poiError || poiSearched)" class="poi-results">
-          <div class="poi-results-header">
-            <span>{{ poiLoading ? '搜索中...' : (poiError ? '搜索失败' : `搜索结果（${poiResults.length}）`) }}</span>
-            <el-button link :icon="Close" @click="clearPoiResults" />
+        <span class="header-divider"></span>
+
+        <div class="search-panel-wrap">
+          <div class="search-toolbar">
+            <el-radio-group v-model="searchMode" @change="handleModeChange">
+              <el-radio-button value="coord">坐标定位</el-radio-button>
+              <el-radio-button value="poi">POI 搜索</el-radio-button>
+            </el-radio-group>
+
+            <el-input
+              v-model="searchKeyword"
+              class="search-input"
+              :placeholder="searchMode === 'coord' ? '输入经度,纬度跳转 (例: 116.4074, 39.9042)' : '输入关键字搜索地点 (例: 故宫)'"
+              clearable
+              @keyup.enter="handleSearch"
+            />
+
+            <el-button
+              type="primary"
+              :loading="searchMode === 'poi' && poiLoading"
+              @click="handleSearch"
+            >{{ searchMode === 'coord' ? '定位' : '搜索' }}</el-button>
           </div>
-          <el-alert
-            v-if="poiError"
-            class="poi-alert"
-            :title="poiError"
-            type="error"
-            :closable="false"
-            show-icon
-          />
-          <el-empty
-            v-else-if="!poiLoading && !poiResults.length"
-            class="poi-empty"
-            description="未找到相关地点"
-            :image-size="60"
-          />
-          <el-scrollbar v-if="poiResults.length" max-height="400px">
-            <ul ref="poiListRef" class="poi-list">
-              <li
-                v-for="(poi, index) in poiResults"
-                :key="poi.id"
-                class="poi-item"
-                :class="{ active: activePoiId === poi.id }"
-                @click="selectPoi(poi)"
-              >
-                <span class="poi-index">{{ index + 1 }}</span>
-                <div class="poi-info">
-                  <div class="poi-name">{{ poi.name }}</div>
-                  <div class="poi-address">{{ poi.address || poi.typeName || '暂无地址信息' }}</div>
-                </div>
-              </li>
-            </ul>
-          </el-scrollbar>
+
+          <!-- POI 搜索结果下拉面板 -->
+          <div v-if="searchMode === 'poi' && (poiLoading || poiError || poiSearched)" class="poi-results">
+            <div class="poi-results-header">
+              <span>{{ poiLoading ? '搜索中...' : (poiError ? '搜索失败' : `搜索结果（${poiResults.length}）`) }}</span>
+              <el-button link :icon="Close" @click="clearPoiResults" />
+            </div>
+            <el-alert
+              v-if="poiError"
+              class="poi-alert"
+              :title="poiError"
+              type="error"
+              :closable="false"
+              show-icon
+            />
+            <el-empty
+              v-else-if="!poiLoading && !poiResults.length"
+              class="poi-empty"
+              description="未找到相关地点"
+              :image-size="60"
+            />
+            <el-scrollbar v-if="poiResults.length" max-height="400px">
+              <ul ref="poiListRef" class="poi-list">
+                <li
+                  v-for="(poi, index) in poiResults"
+                  :key="poi.id"
+                  class="poi-item"
+                  :class="{ active: activePoiId === poi.id }"
+                  @click="selectPoi(poi)"
+                >
+                  <span class="poi-index">{{ index + 1 }}</span>
+                  <div class="poi-info">
+                    <div class="poi-name">{{ poi.name }}</div>
+                    <div class="poi-address">{{ poi.address || poi.typeName || '暂无地址信息' }}</div>
+                  </div>
+                </li>
+              </ul>
+            </el-scrollbar>
+          </div>
         </div>
       </div>
     </header>
@@ -90,25 +154,53 @@
     <!-- 主体区域：左侧地图 + 右侧多点坐标表格栏 -->
     <div class="main-body">
       <div class="map-wrapper">
-        <div ref="mapContainer" class="map-view"></div>
+        <div ref="mapContainer" class="map-view" :class="{ 'is-3d': viewMode === '3d' }"></div>
 
-        <!-- 右上角视图模式与底图切换器 -->
-        <div class="layer-switcher">
-          <el-segmented
-            v-model="viewMode"
-            :options="viewModeOptions"
-            @change="switchViewMode"
-          />
-          <el-segmented
-            v-model="currentLayer"
-            :options="layerOptions"
-            @change="switchBaseLayer"
-          />
+        <!-- 右下角垂直圆形悬浮工具栏：2D/3D 切换 & 底图切换 -->
+        <div class="map-fab-controls">
+          <el-tooltip
+            :content="viewMode === '2d' ? '切换为 3D 地球视图' : '切换为 2D 平面视图'"
+            placement="left"
+          >
+            <el-button
+              circle
+              type="primary"
+              :plain="viewMode === '2d'"
+              class="map-fab-btn"
+              @click="toggleViewMode"
+            >{{ viewMode === '2d' ? '3D' : '2D' }}</el-button>
+          </el-tooltip>
+
+          <el-tooltip
+            :content="currentLayer === 'vec' ? '切换为卫星影像' : '切换为矢量地图'"
+            placement="left"
+          >
+            <el-button
+              circle
+              type="primary"
+              :plain="currentLayer === 'vec'"
+              class="map-fab-btn"
+              @click="toggleBaseLayer"
+            >{{ currentLayer === 'vec' ? '影像' : '矢量' }}</el-button>
+          </el-tooltip>
         </div>
+
+        <!-- 侧边栏收起/展开把手 -->
+        <button
+          type="button"
+          class="sidebar-toggle"
+          :title="sidebarCollapsed ? '展开坐标面板' : '收起坐标面板'"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+        >
+          <el-icon :size="14">
+            <ArrowLeft v-if="sidebarCollapsed" />
+            <ArrowRight v-else />
+          </el-icon>
+        </button>
       </div>
 
       <!-- 右侧坐标拾取列表侧边栏 -->
-      <aside class="coord-sidebar" :class="{ wide: showOtherCoords }">
+      <aside class="coord-sidebar" :class="{ wide: showOtherCoords, collapsed: sidebarCollapsed }">
         <div class="sidebar-top">
           <el-input
             :model-value="activeCoordText"
@@ -122,7 +214,10 @@
         </div>
 
         <div class="sidebar-toolbar">
-          <el-checkbox v-model="showOtherCoords">显示高德/百度</el-checkbox>
+          <div class="toolbar-left">
+            <el-checkbox v-model="showOtherCoords">显示高德/百度</el-checkbox>
+            <span class="point-count">共 {{ pickedPoints.length }} 点</span>
+          </div>
           <div class="toolbar-actions">
             <el-button
               type="primary"
@@ -222,7 +317,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import * as maplibregl from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { ElMessage } from 'element-plus'
-import { Close, CopyDocument, Delete, Download, MapLocation } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Close, CopyDocument, Delete, Download, Key, MapLocation } from '@element-plus/icons-vue'
 import { wgs84ToGcj02, wgs84ToBd09 } from './utils/coordTransform'
 import { exportPointsToCsv } from './utils/exportCsv'
 
@@ -230,15 +325,8 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
 const mapContainer = ref(null)
 const viewMode = ref('2d')
-const viewModeOptions = [
-  { label: '2D', value: '2d' },
-  { label: '3D', value: '3d' }
-]
 const currentLayer = ref('vec')
-const layerOptions = [
-  { label: '矢量地图', value: 'vec' },
-  { label: '卫星影像', value: 'img' }
-]
+const sidebarCollapsed = ref(false)
 const pickedPoints = ref([])
 const activePointId = ref(null)
 const showOtherCoords = ref(false)
@@ -270,9 +358,82 @@ const pointMarkers = new Map()
 let poiMarkers = []
 let mapResizeObserver = null
 
-// 天地图服务端 Token (tk)，通过 .env.local 中的 VITE_TDT_KEY 配置
+// 天地图服务端 Token (tk)，优先使用浏览器端本地保存的自定义密钥，其次读取 VITE_TDT_KEY
 // 注意：需在国家地理信息公共服务平台 (https://console.tianditu.gov.cn/) 申请「浏览器端」Token
-const TDT_KEY = import.meta.env.VITE_TDT_KEY
+const TDT_KEY_STORAGE_KEY = 'tdt_custom_key'
+const DEFAULT_TDT_KEY = import.meta.env.VITE_TDT_KEY || ''
+
+function getStoredTdtKey() {
+  try {
+    return (localStorage.getItem(TDT_KEY_STORAGE_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+const savedTdtKey = getStoredTdtKey()
+const hasCustomTdtKey = ref(Boolean(savedTdtKey))
+const TDT_KEY = savedTdtKey || DEFAULT_TDT_KEY
+
+// 天地图密钥更改浮层交互
+const tkPopoverOpen = ref(false)
+const tkChangeRef = ref(null)
+const tkInputRef = ref(null)
+const tkInput = ref('')
+
+function toggleTkPopover() {
+  tkPopoverOpen.value = !tkPopoverOpen.value
+  if (tkPopoverOpen.value) {
+    nextTick(() => {
+      tkInputRef.value?.focus()
+    })
+  }
+}
+
+function applyTdtKey() {
+  const trimmed = tkInput.value.trim()
+  if (!trimmed) return
+  try {
+    localStorage.setItem(TDT_KEY_STORAGE_KEY, trimmed)
+  } catch {
+    ElMessage.error('无法写入浏览器本地存储，请检查浏览器隐私设置')
+    return
+  }
+  hasCustomTdtKey.value = true
+  tkInput.value = ''
+  tkPopoverOpen.value = false
+  ElMessage({
+    message: '天地图密钥已更换，即将刷新地图',
+    type: 'primary',
+    plain: true,
+    duration: 1500,
+    onClose: () => window.location.reload()
+  })
+}
+
+function resetTdtKey() {
+  try {
+    localStorage.removeItem(TDT_KEY_STORAGE_KEY)
+  } catch {
+    // 忽略存储清理异常
+  }
+  hasCustomTdtKey.value = false
+  tkInput.value = ''
+  tkPopoverOpen.value = false
+  ElMessage({
+    message: '已恢复默认天地图密钥，即将刷新地图',
+    type: 'primary',
+    plain: true,
+    duration: 1500,
+    onClose: () => window.location.reload()
+  })
+}
+
+function handleTkOutsideClick(e) {
+  if (tkPopoverOpen.value && !tkChangeRef.value?.contains(e.target)) {
+    tkPopoverOpen.value = false
+  }
+}
 
 // 天地图官方版权与审图号信息
 const TDT_ATTRIBUTION = '数据来源：自然资源部 & NavInfo　审图号：GS（2026）4921号'
@@ -391,6 +552,14 @@ function switchViewMode(mode) {
   }
 }
 
+function toggleViewMode() {
+  switchViewMode(viewMode.value === '2d' ? '3d' : '2d')
+}
+
+function toggleBaseLayer() {
+  switchBaseLayer(currentLayer.value === 'vec' ? 'img' : 'vec')
+}
+
 // 构建多坐标系点位数据
 function createPointData(id, lng, lat) {
   const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat)
@@ -398,12 +567,36 @@ function createPointData(id, lng, lat) {
   return { id, lng, lat, gcjLng, gcjLat, bdLng, bdLat }
 }
 
+// 创建标绘 DOM（外层 0×0 精准锚点 + 内层徽章/3D 立柱/地面投影）
+function createMarkerElement(baseClass, text) {
+  const el = document.createElement('div')
+  el.className = baseClass
+
+  const body = document.createElement('div')
+  body.className = 'marker-body'
+
+  const badge = document.createElement('span')
+  badge.className = 'marker-badge'
+  badge.textContent = text
+
+  const stem = document.createElement('span')
+  stem.className = 'marker-stem'
+
+  const shadow = document.createElement('span')
+  shadow.className = 'marker-shadow'
+
+  body.append(badge, stem, shadow)
+  el.appendChild(body)
+  return el
+}
+
 // 同步所有已标绘点位的序号显示
 function syncMarkerIndices() {
   pickedPoints.value.forEach((pt, idx) => {
     const marker = pointMarkers.get(pt.id)
-    if (marker) {
-      marker.getElement().textContent = String(idx + 1)
+    const badge = marker?.getElement().querySelector('.marker-badge')
+    if (badge) {
+      badge.textContent = String(idx + 1)
     }
   })
 }
@@ -429,9 +622,7 @@ function addPoint(lng, lat) {
   const point = createPointData(id, lng, lat)
   pickedPoints.value.push(point)
 
-  const el = document.createElement('div')
-  el.className = 'picked-marker'
-  el.textContent = String(pickedPoints.value.length)
+  const el = createMarkerElement('picked-marker', String(pickedPoints.value.length))
   el.addEventListener('click', (evt) => {
     evt.stopPropagation()
     setActivePoint(id)
@@ -592,17 +783,15 @@ async function searchPoi() {
 // 在结果位置添加带序号的蓝色标注
 function addPoiMarkers() {
   poiResults.value.forEach((poi, index) => {
-    const el = document.createElement('div')
-    el.className = 'poi-marker'
+    const el = createMarkerElement('poi-marker', String(index + 1))
     el.dataset.poiId = poi.id
-    el.textContent = String(index + 1)
     el.addEventListener('click', evt => {
       evt.stopPropagation()
       selectPoi(poi)
     })
 
     poiMarkers.push(
-      new maplibregl.Marker({ element: el, anchor: 'bottom' })
+      new maplibregl.Marker({ element: el, anchor: 'center' })
         .setLngLat([poi.lng, poi.lat])
         .addTo(map)
     )
@@ -682,9 +871,9 @@ onMounted(() => {
 
   map.addControl(new maplibregl.NavigationControl(), 'top-left')
 
-  // 版权信息：左下角展示天地图官方数据来源与审图号（由各数据源 attribution 汇总）
-  // 需先于比例尺添加，保证版权条贴在最底部，比例尺位于其上方
-  map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-left')
+  // 版权信息：左下角采用仿 OpenLayers 可折叠数据源标识（默认收起为 i 按钮，点击展开）
+  // 需先于比例尺添加，保证版权按钮贴在最底部，比例尺位于其上方
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
   map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left')
 
   // 监听地图容器宽度变化（例如切换显示高德/百度列），保持画布自适应
@@ -699,9 +888,12 @@ onMounted(() => {
   map.on('click', (e) => {
     addPoint(e.lngLat.lng, e.lngLat.lat)
   })
+
+  document.addEventListener('click', handleTkOutsideClick)
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', handleTkOutsideClick)
   if (mapResizeObserver) {
     mapResizeObserver.disconnect()
     mapResizeObserver = null
@@ -752,16 +944,160 @@ onUnmounted(() => {
 .header-links {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-left: 40px;
+  gap: 10px;
+  margin-left: 28px;
 }
 
 .header-links :deep(.el-link) {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f5f7fa;
+  transition: background-color 0.15s ease;
+}
+
+.header-links :deep(.el-link:hover) {
+  background: #edf2ff;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-divider {
+  width: 1px;
+  height: 18px;
+  background: #e4e7ed;
+  flex-shrink: 0;
+}
+
+/* 更改天地图密钥触发按钮与浮层 */
+.tk-change {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tk-trigger {
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #4e5969;
+  font-family: inherit;
   font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+
+.tk-trigger:hover {
+  color: #1677ff;
+  border-color: #91caff;
+  background: #f5f9ff;
+}
+
+.tk-trigger.active {
+  color: #1677ff;
+  border-color: #1677ff;
+  background: #e6f4ff;
+  font-weight: 600;
+}
+
+.tk-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1677ff;
+  margin-left: 1px;
+}
+
+.tk-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  right: auto;
+  width: 320px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  z-index: 30;
+}
+
+.popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.popover-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8c8c8c;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.popover-close:hover {
+  color: #1f2329;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.popover-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.popover-form :deep(.el-input__wrapper) {
+  border-radius: 8px;
+}
+
+.popover-form :deep(.el-button) {
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 28px;
+}
+
+.popover-footer {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.popover-hint {
+  font-size: 11px;
+  color: #8c8c8c;
 }
 
 .brand-icon {
-  color: #1890ff;
+  color: #1677ff;
 }
 
 .search-panel-wrap {
@@ -888,19 +1224,53 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.layer-switcher {
+/* 地图右下角垂直圆形悬浮工具栏 */
+.map-fab-controls {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  right: 18px;
+  bottom: 24px;
   z-index: 5;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.layer-switcher :deep(.el-segmented) {
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+.map-fab-btn {
+  width: 44px;
+  height: 44px;
+  margin: 0 !important;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* 右侧坐标面板收起/展开把手 */
+.sidebar-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 18px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid #e4e7ed;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #606266;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+  transition: width 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.sidebar-toggle:hover {
+  width: 22px;
+  color: #1677ff;
+  background: #ffffff;
 }
 
 .coord-sidebar {
@@ -911,10 +1281,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  transition: width 0.2s ease;
 }
 
 .coord-sidebar.wide {
   width: min(780px, 56vw);
+}
+
+.coord-sidebar.collapsed {
+  width: 0;
+  border-left: none;
+  overflow: hidden;
 }
 
 .sidebar-top {
@@ -933,6 +1310,21 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 14px;
   border-bottom: 1px solid #f0f0f0;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.point-count {
+  font-size: 12px;
+  color: #606266;
+  background: #f4f6f8;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .toolbar-actions {
@@ -968,15 +1360,87 @@ onUnmounted(() => {
 </style>
 
 <style>
+/* 左上角缩放/指南针控件统一为圆角毛玻璃白底风格 */
+.maplibregl-ctrl-group {
+  border-radius: 10px !important;
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
 /* 左下角控件（比例尺、版权信息）贴左侧 8px、底部 8px */
 .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
   float: none;
   margin: 0 0 8px 8px !important;
 }
 
-/* 版权栏背景透明度与比例尺一致 */
-.maplibregl-ctrl.maplibregl-ctrl-attrib {
-  background-color: hsla(0, 0%, 100%, 0.75);
+/* 仿 OpenLayers 的可折叠数据源标识控件（默认收起为 i 按钮，点击展开与收起） */
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact.maplibregl-compact-show {
+  width: auto;
+  height: auto;
+  padding: 0 8px 0 28px;
+  border-radius: 4px;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib-button {
+  width: 22px;
+  height: 22px;
+  top: 0;
+  left: 0;
+  right: auto;
+  padding: 0;
+  border-radius: 3px;
+  background-image: none;
+  background-color: transparent;
+  text-align: center;
+  line-height: 22px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #404040;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib-button::after {
+  content: 'i';
+  font-style: italic;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #1677ff;
+}
+
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 3px 0 0 3px;
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button::after {
+  content: '«';
+  font-style: normal;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib-inner {
+  font-size: 11px;
+  color: #595959;
+  line-height: 22px;
+  white-space: nowrap;
 }
 
 /* 隐藏默认 logo（保留左下角版权信息） */
@@ -984,61 +1448,154 @@ onUnmounted(() => {
   display: none !important;
 }
 
-/* 已拾取点位标绘图标（红色圆形带序号徽章） */
-.picked-marker {
-  width: 24px;
-  height: 24px;
-  line-height: 20px;
-  text-align: center;
-  border-radius: 50%;
-  background: #ff4d4f;
-  border: 2px solid #ffffff;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: grab;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+/* 标绘与 POI 标注基础容器（0×0 精准锚点，避免缩放覆盖定位 transform） */
+.picked-marker,
+.poi-marker {
+  width: 0;
+  height: 0;
+  position: relative;
   user-select: none;
 }
 
-.picked-marker:active {
+.marker-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  transform-origin: center center;
+  transition: transform 0.2s ease;
+}
+
+.marker-badge {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-weight: 600;
+  transition: width 0.15s ease, height 0.15s ease, background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.marker-stem,
+.marker-shadow {
+  display: none;
+  pointer-events: none;
+}
+
+/* 2D 拾取点位样式 */
+.picked-marker .marker-badge {
+  width: 24px;
+  height: 24px;
+  background: #ff4d4f;
+  font-size: 12px;
+  cursor: grab;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.picked-marker:active .marker-badge {
   cursor: grabbing;
 }
 
-.picked-marker.active {
-  transform: scale(1.25);
+.picked-marker.active .marker-body {
+  transform: translate(-50%, -50%) scale(1.22);
+}
+
+.picked-marker.active .marker-badge {
   background: #cf1322;
   box-shadow: 0 0 0 4px rgba(255, 77, 79, 0.3), 0 3px 10px rgba(255, 77, 79, 0.55);
 }
 
-/* POI 结果标注由 JS 动态创建，需使用全局样式 */
-.poi-marker {
+/* 2D POI 搜索结果标注样式 */
+.poi-marker .marker-badge {
   width: 22px;
   height: 22px;
-  line-height: 22px;
-  text-align: center;
-  border-radius: 50%;
   background: #1890ff;
-  border: 2px solid #ffffff;
-  color: #ffffff;
   font-size: 11px;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-  transition: width 0.15s ease, height 0.15s ease, line-height 0.15s ease,
-    background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* 选中的 POI 标注：放大并变红 */
-.poi-marker.active {
-  width: 30px;
-  height: 30px;
-  line-height: 30px;
-  border-width: 3px;
+.poi-marker.active .marker-body {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.poi-marker.active .marker-badge {
   background: #ff4d4f;
-  font-size: 13px;
-  font-weight: 600;
   box-shadow: 0 2px 8px rgba(255, 77, 79, 0.6);
+}
+
+/* 3D 视图立体球头立柱图钉样式（底端精准落点 + 地面投影） */
+.map-view.is-3d .marker-body {
+  transform: translate(-50%, -100%);
+  transform-origin: center bottom;
+}
+
+.map-view.is-3d .picked-marker.active .marker-body,
+.map-view.is-3d .poi-marker.active .marker-body {
+  transform: translate(-50%, -100%) scale(1.18);
+}
+
+.map-view.is-3d .picked-marker .marker-badge {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  background: radial-gradient(circle at 32% 28%, #ff9c9e 0%, #ff4d4f 45%, #a8071a 100%);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.42), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.map-view.is-3d .picked-marker.active .marker-badge {
+  background: radial-gradient(circle at 32% 28%, #ffb8b8 0%, #f5222d 48%, #820014 100%);
+  box-shadow: 0 0 0 4px rgba(255, 77, 79, 0.32), 0 8px 16px rgba(207, 19, 34, 0.55);
+}
+
+.map-view.is-3d .poi-marker .marker-badge {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  background: radial-gradient(circle at 32% 28%, #91caff 0%, #1890ff 45%, #0958d9 100%);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.38), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.map-view.is-3d .poi-marker.active .marker-badge {
+  background: radial-gradient(circle at 32% 28%, #ff9c9e 0%, #ff4d4f 45%, #a8071a 100%);
+  box-shadow: 0 0 0 4px rgba(255, 77, 79, 0.3), 0 8px 16px rgba(255, 77, 79, 0.55);
+}
+
+.map-view.is-3d .marker-stem {
+  display: block;
+  position: relative;
+  z-index: 1;
+  width: 3px;
+  height: 14px;
+  margin-top: -1px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(to bottom, #a8071a, #ff7875 65%, #ffffff);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.map-view.is-3d .poi-marker .marker-stem {
+  background: linear-gradient(to bottom, #0958d9, #69b1ff 65%, #ffffff);
+}
+
+.map-view.is-3d .poi-marker.active .marker-stem {
+  background: linear-gradient(to bottom, #a8071a, #ff7875 65%, #ffffff);
+}
+
+.map-view.is-3d .marker-shadow {
+  display: block;
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.48) 0%, rgba(0, 0, 0, 0) 72%);
 }
 </style>
 
