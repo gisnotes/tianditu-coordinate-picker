@@ -92,41 +92,18 @@
       <div class="map-wrapper">
         <div ref="mapContainer" class="map-view"></div>
 
-        <!-- 右上角底图切换器（仿 Google Maps：缩略图按钮 + 展开面板） -->
+        <!-- 右上角视图模式与底图切换器 -->
         <div class="layer-switcher">
-          <transition name="layer-panel">
-            <div v-if="layerPanelOpen" class="layer-panel">
-              <div
-                class="layer-option"
-                :class="{ active: currentLayer === 'vec' }"
-                @click="chooseLayer('vec')"
-              >
-                <div class="layer-preview vec-thumb">
-                  <span class="layer-preview-name">矢量地图</span>
-                </div>
-                <span class="layer-label">矢量地图</span>
-              </div>
-              <div
-                class="layer-option"
-                :class="{ active: currentLayer === 'img' }"
-                @click="chooseLayer('img')"
-              >
-                <div class="layer-preview img-thumb">
-                  <span class="layer-preview-name">卫星影像</span>
-                </div>
-                <span class="layer-label">卫星影像</span>
-              </div>
-            </div>
-          </transition>
-          <button
-            class="layer-toggle"
-            type="button"
-            title="切换底图"
-            @click="layerPanelOpen = !layerPanelOpen"
-          >
-            <span class="layer-toggle-thumb" :class="currentLayer === 'vec' ? 'vec-thumb' : 'img-thumb'"></span>
-            <el-icon class="layer-toggle-icon"><Files /></el-icon>
-          </button>
+          <el-segmented
+            v-model="viewMode"
+            :options="viewModeOptions"
+            @change="switchViewMode"
+          />
+          <el-segmented
+            v-model="currentLayer"
+            :options="layerOptions"
+            @change="switchBaseLayer"
+          />
         </div>
       </div>
 
@@ -242,21 +219,26 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import mapboxgl from 'mapbox-gl'
+import * as maplibregl from 'maplibre-gl'
 import { ElMessage } from 'element-plus'
-import { Close, CopyDocument, Delete, Download, Files, MapLocation } from '@element-plus/icons-vue'
+import { Close, CopyDocument, Delete, Download, MapLocation } from '@element-plus/icons-vue'
 import { wgs84ToGcj02, wgs84ToBd09 } from './utils/coordTransform'
 import { exportPointsToCsv } from './utils/exportCsv'
 
-// Mapbox Access Token（通过 .env.local 中的 VITE_MAPBOX_TOKEN 配置）
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
-
 const mapContainer = ref(null)
+const viewMode = ref('2d')
+const viewModeOptions = [
+  { label: '2D', value: '2d' },
+  { label: '3D', value: '3d' }
+]
 const currentLayer = ref('vec')
-const layerPanelOpen = ref(false)
+const layerOptions = [
+  { label: '矢量地图', value: 'vec' },
+  { label: '卫星影像', value: 'img' }
+]
 const pickedPoints = ref([])
 const activePointId = ref(null)
-const showOtherCoords = ref(true)
+const showOtherCoords = ref(false)
 const tableRef = ref(null)
 
 // 搜索方式：coord = 经纬度定位，poi = 关键字搜索
@@ -382,7 +364,7 @@ function createMapStyle() {
 
 // 切换底图（矢量与影像）
 function switchBaseLayer(targetType) {
-  if (currentLayer.value === targetType || !map) return
+  if (!map) return
   currentLayer.value = targetType
 
   const isVec = targetType === 'vec'
@@ -392,10 +374,18 @@ function switchBaseLayer(targetType) {
   map.setLayoutProperty('layer-tdt-cia', 'visibility', isVec ? 'none' : 'visible')
 }
 
-// 选择底图并收起切换面板
-function chooseLayer(type) {
-  switchBaseLayer(type)
-  layerPanelOpen.value = false
+// 切换视图模式（2D 平面 Mercator / 3D 地球 Globe）
+function switchViewMode(mode) {
+  if (!map) return
+  viewMode.value = mode
+  if (typeof map.setProjection === 'function') {
+    map.setProjection({ type: mode === '3d' ? 'globe' : 'mercator' })
+  }
+  if (mode === '3d') {
+    map.easeTo({ pitch: 45, duration: 500 })
+  } else {
+    map.easeTo({ pitch: 0, bearing: 0, duration: 500 })
+  }
 }
 
 // 构建多坐标系点位数据
@@ -444,7 +434,7 @@ function addPoint(lng, lat) {
     setActivePoint(id)
   })
 
-  const marker = new mapboxgl.Marker({ element: el, anchor: 'center', draggable: true })
+  const marker = new maplibregl.Marker({ element: el, anchor: 'center', draggable: true })
     .setLngLat([lng, lat])
     .addTo(map)
 
@@ -517,12 +507,18 @@ function handleModeChange(mode) {
 // 天地图地名搜索服务 (V2.0)
 const TDT_SEARCH_URL = 'https://api.tianditu.gov.cn/v2/search'
 
-// 取当前地图视野范围作为检索范围
+function clamp(val, min, max) {
+  return Math.min(Math.max(val, min), max)
+}
+
+// 取当前地图视野范围作为检索范围（钳制经纬度以兼容 3D Globe 低缩放视图）
 function getMapBound() {
   const b = map.getBounds()
-  return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-    .map(n => n.toFixed(6))
-    .join(',')
+  const west = clamp(b.getWest(), -180, 180)
+  const south = clamp(b.getSouth(), -85, 85)
+  const east = clamp(b.getEast(), -180, 180)
+  const north = clamp(b.getNorth(), -85, 85)
+  return [west, south, east, north].map(n => n.toFixed(6)).join(',')
 }
 
 function clearPoiMarkers() {
@@ -603,7 +599,7 @@ function addPoiMarkers() {
     })
 
     poiMarkers.push(
-      new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([poi.lng, poi.lat])
         .addTo(map)
     )
@@ -671,7 +667,7 @@ function handleExportCsv() {
 }
 
 onMounted(() => {
-  map = new mapboxgl.Map({
+  map = new maplibregl.Map({
     container: mapContainer.value,
     style: createMapStyle(),
     center: [116.4074, 39.9042],
@@ -681,12 +677,12 @@ onMounted(() => {
     attributionControl: false
   })
 
-  map.addControl(new mapboxgl.NavigationControl(), 'top-left')
+  map.addControl(new maplibregl.NavigationControl(), 'top-left')
 
   // 版权信息：左下角展示天地图官方数据来源与审图号（由各数据源 attribution 汇总）
   // 需先于比例尺添加，保证版权条贴在最底部，比例尺位于其上方
-  map.addControl(new mapboxgl.AttributionControl({ compact: false }), 'bottom-left')
-  map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-left')
+  map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-left')
+  map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left')
 
   // 监听地图容器宽度变化（例如切换显示高德/百度列），保持画布自适应
   if (typeof ResizeObserver !== 'undefined' && mapContainer.value) {
@@ -698,7 +694,6 @@ onMounted(() => {
 
   // 点击地图持续添加拾取点位
   map.on('click', (e) => {
-    layerPanelOpen.value = false
     addPoint(e.lngLat.lng, e.lngLat.lat)
   })
 })
@@ -895,118 +890,14 @@ onUnmounted(() => {
   top: 16px;
   right: 16px;
   z-index: 5;
-}
-
-/* 收缩态：仿 Google Maps 的方形缩略图按钮 */
-.layer-toggle {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  padding: 0;
-  border: 2px solid #ffffff;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-  cursor: pointer;
-  transition: box-shadow 0.2s ease;
-}
-
-.layer-toggle:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-.layer-toggle-thumb {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-}
-
-.layer-toggle-icon {
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  font-size: 15px;
-  color: #ffffff;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
-}
-
-/* 展开态：缩略图选项卡面板 */
-.layer-panel {
-  position: absolute;
-  top: 0;
-  right: 64px;
   display: flex;
-  gap: 10px;
-  padding: 10px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-}
-
-.layer-option {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
+  gap: 8px;
 }
 
-.layer-preview {
-  position: relative;
-  width: 88px;
-  height: 88px;
+.layer-switcher :deep(.el-segmented) {
   border-radius: 6px;
-  border: 2px solid transparent;
-  background-size: cover;
-  overflow: hidden;
-  transition: border-color 0.15s ease;
-}
-
-.layer-preview-name {
-  position: absolute;
-  top: 4px;
-  left: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #ffffff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
-}
-
-.layer-label {
-  font-size: 12px;
-  color: #5f6368;
-}
-
-.layer-option.active .layer-preview {
-  border-color: #1a73e8;
-}
-
-.layer-option.active .layer-label {
-  color: #1a73e8;
-  font-weight: 600;
-}
-
-.layer-panel-enter-active,
-.layer-panel-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.layer-panel-enter-from,
-.layer-panel-leave-to {
-  opacity: 0;
-  transform: translateX(6px);
-}
-
-/* 底图缩略图（纯 CSS 近似效果） */
-.vec-thumb {
-  background-color: #e6f4ff;
-  background-image: linear-gradient(135deg, #cbe3fb 25%, #e1effe 25%, #e1effe 50%, #cbe3fb 50%, #cbe3fb 75%, #e1effe 75%, #e1effe 100%);
-}
-
-.img-thumb {
-  background-color: #132238;
-  background-image: linear-gradient(135deg, #1b382b 25%, #264a39 25%, #264a39 50%, #1b382b 50%, #1b382b 75%, #264a39 75%, #264a39 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .coord-sidebar {
@@ -1075,18 +966,18 @@ onUnmounted(() => {
 
 <style>
 /* 左下角控件（比例尺、版权信息）贴左侧 8px、底部 8px */
-.mapboxgl-ctrl-bottom-left .mapboxgl-ctrl {
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
   float: none;
   margin: 0 0 8px 8px !important;
 }
 
 /* 版权栏背景透明度与比例尺一致 */
-.mapboxgl-ctrl.mapboxgl-ctrl-attrib {
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
   background-color: hsla(0, 0%, 100%, 0.75);
 }
 
-/* 隐藏 Mapbox 默认 logo（保留左下角版权信息） */
-.mapboxgl-ctrl-logo {
+/* 隐藏默认 logo（保留左下角版权信息） */
+.maplibregl-ctrl-logo {
   display: none !important;
 }
 
