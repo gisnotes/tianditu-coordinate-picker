@@ -87,74 +87,155 @@
       </div>
     </header>
 
-    <!-- 地图容器主体 -->
-    <div class="map-wrapper">
-      <div ref="mapContainer" class="map-view"></div>
+    <!-- 主体区域：左侧地图 + 右侧多点坐标表格栏 -->
+    <div class="main-body">
+      <div class="map-wrapper">
+        <div ref="mapContainer" class="map-view"></div>
 
-      <!-- 右上角底图切换器（仿 Google Maps：缩略图按钮 + 展开面板） -->
-      <div class="layer-switcher">
-        <transition name="layer-panel">
-          <div v-if="layerPanelOpen" class="layer-panel">
-            <div
-              class="layer-option"
-              :class="{ active: currentLayer === 'vec' }"
-              @click="chooseLayer('vec')"
-            >
-              <div class="layer-preview vec-thumb">
-                <span class="layer-preview-name">矢量地图</span>
+        <!-- 右上角底图切换器（仿 Google Maps：缩略图按钮 + 展开面板） -->
+        <div class="layer-switcher">
+          <transition name="layer-panel">
+            <div v-if="layerPanelOpen" class="layer-panel">
+              <div
+                class="layer-option"
+                :class="{ active: currentLayer === 'vec' }"
+                @click="chooseLayer('vec')"
+              >
+                <div class="layer-preview vec-thumb">
+                  <span class="layer-preview-name">矢量地图</span>
+                </div>
+                <span class="layer-label">矢量地图</span>
               </div>
-              <span class="layer-label">矢量地图</span>
-            </div>
-            <div
-              class="layer-option"
-              :class="{ active: currentLayer === 'img' }"
-              @click="chooseLayer('img')"
-            >
-              <div class="layer-preview img-thumb">
-                <span class="layer-preview-name">卫星影像</span>
+              <div
+                class="layer-option"
+                :class="{ active: currentLayer === 'img' }"
+                @click="chooseLayer('img')"
+              >
+                <div class="layer-preview img-thumb">
+                  <span class="layer-preview-name">卫星影像</span>
+                </div>
+                <span class="layer-label">卫星影像</span>
               </div>
-              <span class="layer-label">卫星影像</span>
             </div>
-          </div>
-        </transition>
-        <button
-          class="layer-toggle"
-          type="button"
-          title="切换底图"
-          @click="layerPanelOpen = !layerPanelOpen"
-        >
-          <span class="layer-toggle-thumb" :class="currentLayer === 'vec' ? 'vec-thumb' : 'img-thumb'"></span>
-          <el-icon class="layer-toggle-icon"><Files /></el-icon>
-        </button>
-      </div>
-
-      <!-- 浮动坐标拾取面板 -->
-      <div v-if="pickedCoord" class="coord-card">
-        <div class="card-header">
-          <span class="card-title">
-            <el-icon><Aim /></el-icon>
-            当前拾取坐标
-          </span>
-          <el-button link :icon="Close" @click="pickedCoord = null" />
-        </div>
-        <div class="coord-group">
-          <div class="coord-item">
-            <span class="label">WGS-84 (CGCS2000):</span>
-            <span class="value">{{ pickedCoord.lng.toFixed(6) }}, {{ pickedCoord.lat.toFixed(6) }}</span>
-            <el-button size="small" @click="copyText(`${pickedCoord.lng.toFixed(6)}, ${pickedCoord.lat.toFixed(6)}`)">复制</el-button>
-          </div>
-          <div class="coord-item">
-            <span class="label">GCJ-02 (高德/腾讯):</span>
-            <span class="value">{{ gcjCoord[0].toFixed(6) }}, {{ gcjCoord[1].toFixed(6) }}</span>
-            <el-button size="small" @click="copyText(`${gcjCoord[0].toFixed(6)}, ${gcjCoord[1].toFixed(6)}`)">复制</el-button>
-          </div>
-          <div class="coord-item">
-            <span class="label">BD-09 (百度地图):</span>
-            <span class="value">{{ bdCoord[0].toFixed(6) }}, {{ bdCoord[1].toFixed(6) }}</span>
-            <el-button size="small" @click="copyText(`${bdCoord[0].toFixed(6)}, ${bdCoord[1].toFixed(6)}`)">复制</el-button>
-          </div>
+          </transition>
+          <button
+            class="layer-toggle"
+            type="button"
+            title="切换底图"
+            @click="layerPanelOpen = !layerPanelOpen"
+          >
+            <span class="layer-toggle-thumb" :class="currentLayer === 'vec' ? 'vec-thumb' : 'img-thumb'"></span>
+            <el-icon class="layer-toggle-icon"><Files /></el-icon>
+          </button>
         </div>
       </div>
+
+      <!-- 右侧坐标拾取列表侧边栏 -->
+      <aside class="coord-sidebar" :class="{ wide: showOtherCoords }">
+        <div class="sidebar-top">
+          <el-input
+            :model-value="activeCoordText"
+            readonly
+            placeholder="点击地图拾取坐标"
+          >
+            <template #append>
+              <el-button :disabled="!activeCoordText" @click="copyText(activeCoordText)">复制</el-button>
+            </template>
+          </el-input>
+        </div>
+
+        <div class="sidebar-toolbar">
+          <el-checkbox v-model="showOtherCoords">显示高德/百度</el-checkbox>
+          <div class="toolbar-actions">
+            <el-button
+              type="primary"
+              size="small"
+              :icon="Download"
+              :disabled="!pickedPoints.length"
+              @click="handleExportCsv"
+            >导出为 .csv</el-button>
+            <el-button
+              type="danger"
+              plain
+              size="small"
+              :icon="Delete"
+              :disabled="!pickedPoints.length"
+              @click="clearAllPoints"
+            >清空</el-button>
+          </div>
+        </div>
+
+        <div class="sidebar-table">
+          <el-table
+            ref="tableRef"
+            :data="pickedPoints"
+            height="100%"
+            stripe
+            highlight-current-row
+            row-key="id"
+            empty-text="点击地图即可持续添加坐标点位"
+            @row-click="row => setActivePoint(row.id)"
+          >
+            <el-table-column label="#" width="48" align="center">
+              <template #default="{ $index }">{{ $index + 1 }}</template>
+            </el-table-column>
+
+            <el-table-column label="天地图(CGCS2000)" min-width="210">
+              <template #default="{ row }">
+                <div class="coord-cell">
+                  <span class="coord-text">{{ formatCoord(row.lng, row.lat) }}</span>
+                  <el-button
+                    link
+                    type="primary"
+                    :icon="CopyDocument"
+                    title="复制天地图坐标"
+                    @click.stop="copyText(formatCoord(row.lng, row.lat))"
+                  />
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column v-if="showOtherCoords" label="高德(GCJ-02)" min-width="210">
+              <template #default="{ row }">
+                <div class="coord-cell">
+                  <span class="coord-text">{{ formatCoord(row.gcjLng, row.gcjLat) }}</span>
+                  <el-button
+                    link
+                    type="primary"
+                    :icon="CopyDocument"
+                    title="复制高德坐标"
+                    @click.stop="copyText(formatCoord(row.gcjLng, row.gcjLat))"
+                  />
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column v-if="showOtherCoords" label="百度(BD-09)" min-width="210">
+              <template #default="{ row }">
+                <div class="coord-cell">
+                  <span class="coord-text">{{ formatCoord(row.bdLng, row.bdLat) }}</span>
+                  <el-button
+                    link
+                    type="primary"
+                    :icon="CopyDocument"
+                    title="复制百度坐标"
+                    @click.stop="copyText(formatCoord(row.bdLng, row.bdLat))"
+                  />
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="操作" width="110" fixed="right" align="center">
+              <template #default="{ row }">
+                <div class="op-actions">
+                  <el-button type="primary" link @click.stop="locatePoint(row)">定位</el-button>
+                  <el-button type="danger" link @click.stop="removePoint(row.id)">移除</el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
@@ -162,8 +243,10 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import mapboxgl from 'mapbox-gl'
-import { Aim, Close, Files, MapLocation } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Close, CopyDocument, Delete, Download, Files, MapLocation } from '@element-plus/icons-vue'
 import { wgs84ToGcj02, wgs84ToBd09 } from './utils/coordTransform'
+import { exportPointsToCsv } from './utils/exportCsv'
 
 // Mapbox Access Token（通过 .env.local 中的 VITE_MAPBOX_TOKEN 配置）
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -171,7 +254,10 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 const mapContainer = ref(null)
 const currentLayer = ref('vec')
 const layerPanelOpen = ref(false)
-const pickedCoord = ref({ lng: 116.4074, lat: 39.9042 })
+const pickedPoints = ref([])
+const activePointId = ref(null)
+const showOtherCoords = ref(true)
+const tableRef = ref(null)
 
 // 搜索方式：coord = 经纬度定位，poi = 关键字搜索
 const searchMode = ref('coord')
@@ -194,8 +280,10 @@ const searchKeyword = computed({
 })
 
 let map = null
-let marker = null
+let nextPointId = 1
+const pointMarkers = new Map()
 let poiMarkers = []
+let mapResizeObserver = null
 
 // 天地图服务端 Token (tk)，通过 .env.local 中的 VITE_TDT_KEY 配置
 // 注意：需在国家地理信息公共服务平台 (https://console.tianditu.gov.cn/) 申请「浏览器端」Token
@@ -212,15 +300,17 @@ function getTdtUrls(type) {
   )
 }
 
-// 转换其它坐标系展示
-const gcjCoord = computed(() => {
-  if (!pickedCoord.value) return [0, 0]
-  return wgs84ToGcj02(pickedCoord.value.lng, pickedCoord.value.lat)
+function formatCoord(lng, lat) {
+  return `${lng.toFixed(6)}, ${lat.toFixed(6)}`
+}
+
+const activePoint = computed(() => {
+  return pickedPoints.value.find(p => p.id === activePointId.value) || null
 })
 
-const bdCoord = computed(() => {
-  if (!pickedCoord.value) return [0, 0]
-  return wgs84ToBd09(pickedCoord.value.lng, pickedCoord.value.lat)
+const activeCoordText = computed(() => {
+  if (!activePoint.value) return ''
+  return formatCoord(activePoint.value.lng, activePoint.value.lat)
 })
 
 // 创建底图样式规范对象
@@ -308,33 +398,108 @@ function chooseLayer(type) {
   layerPanelOpen.value = false
 }
 
-// 拾取与标点定位
-function setCoord(lng, lat) {
-  pickedCoord.value = { lng, lat }
-  if (!marker) {
-    marker = new mapboxgl.Marker({ color: '#ff4d4f', draggable: true })
-      .setLngLat([lng, lat])
-      .addTo(map)
+// 构建多坐标系点位数据
+function createPointData(id, lng, lat) {
+  const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat)
+  const [bdLng, bdLat] = wgs84ToBd09(lng, lat)
+  return { id, lng, lat, gcjLng, gcjLat, bdLng, bdLat }
+}
 
-    marker.on('dragend', () => {
-      const pos = marker.getLngLat()
-      pickedCoord.value = { lng: pos.lng, lat: pos.lat }
-    })
-  } else {
-    marker.setLngLat([lng, lat])
+// 同步所有已标绘点位的序号显示
+function syncMarkerIndices() {
+  pickedPoints.value.forEach((pt, idx) => {
+    const marker = pointMarkers.get(pt.id)
+    if (marker) {
+      marker.getElement().textContent = String(idx + 1)
+    }
+  })
+}
+
+// 设置当前高亮选中点位（同步地图标注与表格高亮行）
+function setActivePoint(id) {
+  activePointId.value = id
+  pointMarkers.forEach((marker, markerId) => {
+    const el = marker.getElement()
+    const isActive = markerId === id
+    el.classList.toggle('active', isActive)
+    el.style.zIndex = isActive ? '10' : ''
+  })
+  nextTick(() => {
+    const row = pickedPoints.value.find(p => p.id === id) || null
+    tableRef.value?.setCurrentRow(row)
+  })
+}
+
+// 新增拾取点位并在地图上绘制带序号图标
+function addPoint(lng, lat) {
+  const id = nextPointId++
+  const point = createPointData(id, lng, lat)
+  pickedPoints.value.push(point)
+
+  const el = document.createElement('div')
+  el.className = 'picked-marker'
+  el.textContent = String(pickedPoints.value.length)
+  el.addEventListener('click', (evt) => {
+    evt.stopPropagation()
+    setActivePoint(id)
+  })
+
+  const marker = new mapboxgl.Marker({ element: el, anchor: 'center', draggable: true })
+    .setLngLat([lng, lat])
+    .addTo(map)
+
+  marker.on('dragend', () => {
+    const pos = marker.getLngLat()
+    const target = pickedPoints.value.find(p => p.id === id)
+    if (target) {
+      Object.assign(target, createPointData(id, pos.lng, pos.lat))
+    }
+    setActivePoint(id)
+  })
+
+  pointMarkers.set(id, marker)
+  setActivePoint(id)
+}
+
+// 定位到指定点位
+function locatePoint(point) {
+  setActivePoint(point.id)
+  map.flyTo({ center: [point.lng, point.lat], zoom: Math.max(map.getZoom(), 14) })
+}
+
+// 移除单个点位并重新编号
+function removePoint(id) {
+  const marker = pointMarkers.get(id)
+  if (marker) {
+    marker.remove()
+    pointMarkers.delete(id)
+  }
+  pickedPoints.value = pickedPoints.value.filter(p => p.id !== id)
+  syncMarkerIndices()
+  if (activePointId.value === id) {
+    const fallback = pickedPoints.value[pickedPoints.value.length - 1] || null
+    setActivePoint(fallback ? fallback.id : null)
   }
 }
 
-// 手动输入经纬度跳转
+// 清空所有点位
+function clearAllPoints() {
+  pointMarkers.forEach(marker => marker.remove())
+  pointMarkers.clear()
+  pickedPoints.value = []
+  setActivePoint(null)
+}
+
+// 手动输入经纬度跳转并新增点位
 function handleJump() {
   if (!coordQuery.value.trim()) return
   const parts = coordQuery.value.split(/[,，\s]+/).map(Number)
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
     const [lng, lat] = parts
-    setCoord(lng, lat)
+    addPoint(lng, lat)
     map.flyTo({ center: [lng, lat], zoom: 14 })
   } else {
-    alert('请输入正确的格式，例如：116.4074, 39.9042')
+    ElMessage.warning('请输入正确的格式，例如：116.4074, 39.9042')
   }
 }
 
@@ -445,12 +610,12 @@ function addPoiMarkers() {
   })
 }
 
-// 选中搜索结果：定位并同步拾取坐标
+// 选中搜索结果：定位并新增拾取点位
 function selectPoi(poi) {
   activePoiId.value = poi.id
   updateActivePoiMarker()
   scrollActivePoiIntoView()
-  setCoord(poi.lng, poi.lat)
+  addPoint(poi.lng, poi.lat)
   map.flyTo({ center: [poi.lng, poi.lat], zoom: Math.max(map.getZoom(), 15) })
 }
 
@@ -473,11 +638,36 @@ function updateActivePoiMarker() {
   })
 }
 
-// 复制坐标
-function copyText(val) {
-  navigator.clipboard.writeText(val).then(() => {
-    alert('已复制坐标：' + val)
-  })
+// 复制坐标（支持 Clipboard API 及降级方案）
+async function copyText(val) {
+  if (!val) return
+  try {
+    await navigator.clipboard.writeText(val)
+    ElMessage.success('已复制坐标：' + val)
+  } catch {
+    const textarea = document.createElement('textarea')
+    textarea.value = val
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    if (copied) {
+      ElMessage.success('已复制坐标：' + val)
+    } else {
+      ElMessage.error('复制失败，请手动复制')
+    }
+  }
+}
+
+// 导出当前拾取点位为 CSV
+function handleExportCsv() {
+  if (!exportPointsToCsv(pickedPoints.value, showOtherCoords.value)) {
+    ElMessage.warning('暂无可导出的坐标点位')
+    return
+  }
+  ElMessage.success(`已导出 ${pickedPoints.value.length} 个点位到 CSV`)
 }
 
 onMounted(() => {
@@ -498,17 +688,28 @@ onMounted(() => {
   map.addControl(new mapboxgl.AttributionControl({ compact: false }), 'bottom-left')
   map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-left')
 
-  // 初始化默认点
-  setCoord(116.4074, 39.9042)
+  // 监听地图容器宽度变化（例如切换显示高德/百度列），保持画布自适应
+  if (typeof ResizeObserver !== 'undefined' && mapContainer.value) {
+    mapResizeObserver = new ResizeObserver(() => {
+      map?.resize()
+    })
+    mapResizeObserver.observe(mapContainer.value)
+  }
 
-  // 点击地图拾取坐标
+  // 点击地图持续添加拾取点位
   map.on('click', (e) => {
     layerPanelOpen.value = false
-    setCoord(e.lngLat.lng, e.lngLat.lat)
+    addPoint(e.lngLat.lng, e.lngLat.lat)
   })
 })
 
 onUnmounted(() => {
+  if (mapResizeObserver) {
+    mapResizeObserver.disconnect()
+    mapResizeObserver = null
+  }
+  pointMarkers.forEach(marker => marker.remove())
+  pointMarkers.clear()
   if (map) {
     map.remove()
     map = null
@@ -671,8 +872,16 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
+.main-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
 .map-wrapper {
   flex: 1;
+  min-width: 0;
   position: relative;
 }
 
@@ -800,57 +1009,67 @@ onUnmounted(() => {
   background-image: linear-gradient(135deg, #1b382b 25%, #264a39 25%, #264a39 50%, #1b382b 50%, #1b382b 75%, #264a39 75%, #264a39 100%);
 }
 
-.coord-card {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  width: 380px;
+.coord-sidebar {
+  width: 410px;
+  flex-shrink: 0;
   background: #ffffff;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
-  z-index: 5;
-}
-
-.card-header {
+  border-left: 1px solid #e8e8e8;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.card-title {
+.coord-sidebar.wide {
+  width: min(780px, 56vw);
+}
+
+.sidebar-top {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sidebar-top :deep(.el-input__inner) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.sidebar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-table {
+  flex: 1;
+  min-height: 0;
+}
+
+.coord-cell {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
+}
+
+.coord-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
   color: #262626;
+  white-space: nowrap;
 }
 
-.coord-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.coord-item {
+.op-actions {
   display: flex;
   align-items: center;
-  font-size: 13px;
-  justify-content: space-between;
-}
-
-.coord-item .label {
-  color: #595959;
-  width: 135px;
-}
-
-.coord-item .value {
-  color: #262626;
-  font-family: monospace;
-  font-size: 13px;
-  flex: 1;
+  justify-content: center;
+  gap: 4px;
 }
 </style>
 
@@ -869,6 +1088,34 @@ onUnmounted(() => {
 /* 隐藏 Mapbox 默认 logo（保留左下角版权信息） */
 .mapboxgl-ctrl-logo {
   display: none !important;
+}
+
+/* 已拾取点位标绘图标（红色圆形带序号徽章） */
+.picked-marker {
+  width: 24px;
+  height: 24px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 50%;
+  background: #ff4d4f;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: grab;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  user-select: none;
+}
+
+.picked-marker:active {
+  cursor: grabbing;
+}
+
+.picked-marker.active {
+  transform: scale(1.25);
+  background: #cf1322;
+  box-shadow: 0 0 0 4px rgba(255, 77, 79, 0.3), 0 3px 10px rgba(255, 77, 79, 0.55);
 }
 
 /* POI 结果标注由 JS 动态创建，需使用全局样式 */
