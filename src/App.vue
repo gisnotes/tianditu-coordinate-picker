@@ -220,10 +220,13 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import * as maplibregl from 'maplibre-gl'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { ElMessage } from 'element-plus'
 import { Close, CopyDocument, Delete, Download, MapLocation } from '@element-plus/icons-vue'
 import { wgs84ToGcj02, wgs84ToBd09 } from './utils/coordTransform'
 import { exportPointsToCsv } from './utils/exportCsv'
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
 const mapContainer = ref(null)
 const viewMode = ref('2d')
